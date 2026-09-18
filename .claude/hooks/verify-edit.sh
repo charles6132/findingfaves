@@ -51,8 +51,17 @@ case "$file" in
     fi
     ;;
   *.go)
-    try gofmt gofmt -l "$file"
-    try govet go vet "./$(dirname "$file")"
+    # gofmt -l exits 0 and LISTS unformatted files on stdout, so its exit code
+    # carries no signal. Detect on non-empty output instead.
+    if command -v gofmt >/dev/null 2>&1; then
+      out=$(gofmt -l "$file" 2>&1)
+      [ -n "$out" ] && note "[gofmt] not gofmt-formatted: $file"
+    fi
+    # Vet the package directory, passed absolute. file_path arrives absolute,
+    # so "./$(dirname ...)" would build a nonsense path under the project dir.
+    if command -v go >/dev/null 2>&1; then
+      out=$(go vet "$(dirname "$file")" 2>&1) || note "[govet] $(printf '%s' "$out" | head -n 20)"
+    fi
     ;;
   *.rs)
     [ -f Cargo.toml ] && try cargo cargo check --quiet
