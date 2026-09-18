@@ -1,6 +1,6 @@
-# Agent Build Spec — debugger / implementer / analyzer
+# Agent Build Spec — debugger / implementer / analyzer / scout / researcher
 
-**Status:** debugger, implementer and analyzer are **written and committed**. Hooks are written and **validated against a real project** — see §7. Two bugs were found and fixed during that validation.
+**Status:** all five agents are **written and committed**. Hooks are written and **validated against a real project** — see §7, plus a third hook script added since (§7.1). Three bugs were found and fixed across those validations.
 **Read first:** `docs/research/debug-coding-agent-findings.md` for the evidence behind these choices.
 
 ---
@@ -11,7 +11,8 @@ A set of Claude Code subagents that make a codebase debuggable and changeable wi
 
 - **`debugger`** — finds and *proves* the root cause of a defect. Produces a diagnosis. Does not fix.
 - **`implementer`** — makes a change that is already understood, and verifies it before claiming done.
-- **`analyzer`** (not yet built) — read-only structural understanding of unfamiliar code: what it does, how it is organised, where the risk is.
+- **`analyzer`** — read-only structural understanding of unfamiliar code: what it does, how it is organised, where the risk is.
+- **`scout`** / **`researcher`** — the two staged research agents, carrying harness-enforced turn caps (§5.5).
 
 ### The one structural decision that matters
 
@@ -28,14 +29,21 @@ The dominant failure mode of debugging agents is shortcutting to a plausible pat
 ├── agents/
 │   ├── debugger.md          ✅ built
 │   ├── implementer.md       ✅ built
-│   └── analyzer.md          ✅ built
+│   ├── analyzer.md          ✅ built
+│   ├── scout.md             ✅ built   (maxTurns: 10)
+│   └── researcher.md        ✅ built   (maxTurns: 20)
 ├── hooks/
 │   ├── verify-edit.sh       ✅ built + validated
-│   └── verify-done.sh       ✅ built + validated
+│   ├── verify-done.sh       ✅ built + validated
+│   └── check-frontmatter.py ✅ built + validated
+├── skills/                  ← from the desktop session; see agent-platform-skills.md
 └── settings.json            ✅ wires both hooks
+
+CLAUDE.md                    ← project memory; read this before the research docs
 
 docs/research/
 ├── debug-coding-agent-findings.md
+├── agent-platform-skills.md
 └── agent-spec.md            (this file)
 
 research_notes/Debug and coding agent design/   ← 254 KB of sourced research
@@ -134,6 +142,57 @@ color: cyan
 
 **Design note:** `sonnet` and no `Bash` are deliberate. Analysis is breadth-first reading; the expensive model buys little, and execution is not needed. If you find yourself wanting `Bash` here, the task is probably a debugger task.
 
+## 5.5 `scout` and `researcher` — built
+
+The two agents that make findings §5's staged research design real, and the
+place where this repo finally stops writing budgets as prose.
+
+```yaml
+name: scout                    name: researcher
+tools: WebSearch, Read,        tools: Read, Write, Glob,
+  Write, Glob                    WebSearch, WebFetch, Bash
+model: haiku                   model: sonnet
+effort: low                    effort: medium
+maxTurns: 10                   maxTurns: 20
+```
+
+**`maxTurns` is the whole point.** The incident in findings §3 happened because a
+15-tool-call budget lived in a sentence while the scope handed out needed 40+.
+Every one of the five agents chose the scope. `maxTurns` is enforced by the
+harness — the agent is stopped and its output returned marked partial — so there
+is nothing to reason past. Confirmed against the official frontmatter schema:
+camelCase, no documented maximum, partial-marking needs v2.1.246+.
+
+**Why scout has no `WebFetch`.** Fetched pages are what fill context, and context
+is re-read every turn. Scouting needs breadth; search snippets rank a candidate
+well enough. This is the same asymmetry as the debugger's missing `Edit` — the
+tool allowlist enforces the design rather than describing it.
+
+**Why the models differ.** All five agents in the incident ran on `opus`,
+including the search-triage legs where a smaller model loses almost nothing.
+Scout is triage, so `haiku`; researchers read and reason over sources, so
+`sonnet`; the writer stays `opus` because it is one bounded pass, not seventy
+turns of accumulation. The expensive thing was never the model, it was the turn
+count.
+
+**Both write early and rewrite.** The `researcher` prompt requires an evidence
+file after the first fetch batch, rewritten after gap-fill — same filename, same
+schema. That is findings §3 Bug B, fixed at the point where it actually bit.
+
+**Not changed: the evidence JSON schema.** It is consumed by `merge_evidence.py`,
+which is not in this repository (see §5.6), so the contract was preserved exactly
+rather than improved blind.
+
+### 5.6 What the research skills still cannot do here
+
+`.claude/skills/research-agent/` shells out to `search.ps1`, `merge_evidence.py`
+and `checkurls.ps1`. **Only `ENGINES.md` was committed** — the scripts live in
+the desktop skills store, and two of them are PowerShell. The skill therefore
+cannot run end to end from a Linux checkout. The skill now resolves an
+`$ENGINES` directory instead of hardcoding one machine's absolute paths, and
+says to stop with a clear message rather than improvising replacements for a
+merger whose behaviour nobody here can read.
+
 ## 6. Delegation flow
 
 ```
@@ -160,6 +219,7 @@ Automatic delegation is driven **entirely by the `description` field**. Keep des
 |---|---|---|---|
 | `verify-edit.sh` | `PostToolUse` | `Edit\|Write\|NotebookEdit` | Per-file lint/typecheck after every edit; feeds failures back via `hookSpecificOutput.additionalContext` |
 | `verify-done.sh` | `Stop` | (all) | Runs the project test suite; **exit 2 refuses to let the turn end** on red |
+| `check-frontmatter.py` | via `verify-edit.sh` | `.claude/agents/*.md`, `*/SKILL.md` | Fails a silently-broken YAML frontmatter loudly — see §7.1 |
 
 **`verify-edit.sh`** — detects project type from the edited file's extension and the presence of `pyproject.toml` / `package.json` / `go.mod` / `Cargo.toml`. Runs only fast file-scoped checks (ruff, mypy, eslint, tsc, gofmt, go vet, cargo check, shellcheck), never the full suite, because it fires on every edit. Exits 0 always — `PostToolUse` cannot block, so the useful channel is context injection.
 
@@ -185,6 +245,35 @@ Both were invisible to `bash -n`, which is exactly why the scripts needed to be 
 
 **Still untested:** the TypeScript/Rust branches (no such project was built), and both hooks under the real Claude Code harness rather than by piping JSON to them directly. The payload shapes used are the documented ones, but a live-harness run is still worth doing.
 
+### 7.1 `check-frontmatter.py` — added and validated
+
+The desktop session found that a bare `: ` inside an unquoted description broke
+the frontmatter of five skills at once. Silently — no error, the skills still
+listed, descriptions falling back to the body's H1. Since routing runs on
+descriptions, all five would have mis-routed invisibly, looking like model
+misbehaviour rather than a config bug. It was caught only because the rendered
+list changed shape. **The same convention, and the same trap, applies to
+`.claude/agents/*.md`.**
+
+That session could not fix it without touching this branch's `verify-edit.sh`,
+so it left the item open. It is now done: `verify-edit.sh` gained an `*.md`
+branch that fires only for `.claude/agents/*.md` and `.claude/skills/*/SKILL.md`.
+
+The checker uses PyYAML as the authority where it is installed and falls back to
+targeted structural checks where it is not, because the desktop may not have it.
+Beyond parseability it reports what a parser error does not — which key broke and
+what to do about it — and catches a missing `name`/`description` and a `name`
+that disagrees with its own path, since invocation goes by path.
+
+**Validated by execution, 8 cases.** Caught the historical bug verbatim, an
+unterminated block, a missing description, a name/path mismatch and a tab
+indent; stayed silent on a quoted colon and on a block sequence; the hook emitted
+`additionalContext` for a broken file and exited 0 for clean files, non-skill
+markdown, a real repo agent, and a missing checker. One false positive surfaced
+during validation and was fixed — a bare `tools:` introducing a block value is
+legal YAML and was briefly flagged. Which is the §7 lesson twice over: the bug
+was in the checking code, and only running it found that too.
+
 ## 8. What is deliberately NOT here
 
 - **No large third-party agent pack.** The value of an agent definition is mostly project-specific knowledge, which cannot be downloaded — and a pile of vague `description` fields degrades automatic delegation and eats the 15,000-token description budget. Mine `wshobson/agents` (MIT) and `VoltAgent/awesome-claude-code-subagents` (MIT) for phrasing; do not install wholesale.
@@ -193,13 +282,16 @@ Both were invisible to `bash -n`, which is exactly why the scripts needed to be 
 
 ## 9. Open work, in priority order
 
-1. **Redo the lost research leg** — published production system prompts and process patterns (see findings §7, `UNRECOVERABLE`). Use the 3-stage design so it does not cost 26M tokens.
-2. **Attach `mcp-debugger`** to `debugger` via `mcpServers` — the +11–15 pp lever, and the single highest-value upgrade left.
-3. **Exercise the hooks under the live harness**, and cover the TypeScript and Rust branches (see §7).
-4. **Restructure the deep-research skill** per findings §5 — `maxTurns` caps, incremental note-writing, staged execution.
-5. **Build an eval set** — needs ~50 merged PRs as a golden set, oracle hidden, run weekly. **Blocked: this repo has no merged PRs yet.** This is how you find out whether any of the above actually helps.
+1. **Attach `mcp-debugger`** to `debugger` via `mcpServers` — the +11–15 pp lever, and the single highest-value upgrade left.
+2. **Ship the three engine scripts**, or port them — until then the research skills cannot run outside the desktop (§5.6). `merge_evidence.py` matters most; the two PowerShell scripts need a portable equivalent.
+3. **Run the staged research design once, end to end, and measure it.** The 85–90% cost reduction is modelled. Now that the caps are harness-enforced, one real run turns it into a number.
+4. **Redo the lost research leg** — published production system prompts and process patterns (see findings §7, `UNRECOVERABLE`). Use the staged design so it does not cost 26M tokens again.
+5. **Exercise the hooks under the live harness**, and cover the TypeScript and Rust branches (see §7).
+6. **Build an eval set** — needs ~50 merged PRs as a golden set, oracle hidden, run weekly. **Blocked: this repo has no merged PRs yet.** This is how you find out whether any of the above actually helps.
 
 ~~Execute the hooks against a real project~~ — done, §7.
 ~~Build `analyzer`~~ — done, §5.
+~~Restructure the deep-research skill per findings §5~~ — done, §5.5. `maxTurns` caps, staged scout→researcher execution, and write-early-rewrite are all in place; the measurement in step 3 is what remains.
+~~Add the frontmatter parse check to a hook~~ — done, §7.1 (this was open work item 4 in `agent-platform-skills.md`, deliberately left until the branches merged).
 
-**Note on step 5:** nothing in this spec has been measured. The prompts encode findings from the literature, but whether *these* agents help *this* codebase is untested. The eval set is how that stops being a guess.
+**Note on step 6:** nothing in this spec has been measured. The prompts encode findings from the literature, but whether *these* agents help *this* codebase is untested. The eval set is how that stops being a guess.

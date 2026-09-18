@@ -256,11 +256,22 @@ names are not routing IDs and `--output json` truncates.
 2. **Re-test Antigravity on a fresh day.** It is the difference between one usable free
    model and several, and the plan differs materially between those worlds.
 3. **Diagnose the three empty provider keys** — potentially widens free capacity.
-4. **Add the frontmatter parse check to a hook.** The sibling branch already has
-   `verify-edit.sh` on `Edit|Write`; a YAML frontmatter check for `SKILL.md` and
-   `.claude/agents/*.md` belongs there. Not done — deliberately not touching their
-   `settings.json` or hooks from this branch to avoid a conflict.
-5. **Neither research skill has been run end to end since consolidation.** The validator
+4. ~~**Add the frontmatter parse check to a hook.**~~ **Done.** The branches have
+   since been merged, which removed the conflict this was waiting on.
+   `.claude/hooks/check-frontmatter.py` now runs from `verify-edit.sh` for both
+   `SKILL.md` and `.claude/agents/*.md`. See `agent-spec.md` §7.1 — it was
+   validated by execution across 8 cases, and one false positive in the checker
+   itself was found and fixed that way.
+5. **The engine scripts were never committed.** `ENGINES.md` shipped; `search.ps1`,
+   `merge_evidence.py` and `checkurls.ps1` did not. They exist only in the
+   desktop skills store, and two of the three are PowerShell, so the research
+   skills cannot run end to end from a Linux checkout at all. `research-agent`
+   now resolves an `$ENGINES` directory rather than hardcoding
+   `C:\Users\Charles\...`, and stops with a clear message when the scripts are
+   absent instead of improvising a replacement for a merger nobody here can read.
+   Porting `merge_evidence.py` is the unblocking move.
+
+6. **Neither research skill has been run end to end since consolidation.** The validator
    was smoke-tested directly (passes a complete file, fails an incomplete one naming the
    missing field) and all frontmatter parses, but no full study has been executed.
    Treat `research-compare` as untested at the workflow level.
