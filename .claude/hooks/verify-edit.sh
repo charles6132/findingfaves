@@ -17,6 +17,10 @@ file=$(printf '%s' "$payload" | jq -r '.tool_input.file_path // empty')
 [ -z "$file" ] && exit 0
 [ -f "$file" ] || exit 0
 
+# Resolve the hook's own directory before changing away from it, so sibling
+# scripts can be called regardless of how the hook was invoked.
+hook_dir=$(cd "$(dirname "$0")" 2>/dev/null && pwd) || hook_dir=""
+
 cd "${CLAUDE_PROJECT_DIR:-$(pwd)}" || exit 0
 
 findings=""
@@ -68,6 +72,21 @@ case "$file" in
     ;;
   *.sh)
     try shellcheck shellcheck "$file"
+    ;;
+  *.md)
+    # Skills and agents route on their frontmatter description. A broken parse
+    # is silent — the description falls back to the body's H1 and every one of
+    # them mis-routes invisibly. See docs/research/agent-platform-skills.md §3.
+    case "$file" in
+      */.claude/agents/*.md|*/.claude/skills/*/SKILL.md)
+        if [ -n "$hook_dir" ] && [ -f "$hook_dir/check-frontmatter.py" ] &&
+           command -v python3 >/dev/null 2>&1; then
+          if ! out=$(python3 "$hook_dir/check-frontmatter.py" "$file" 2>&1); then
+            note "[frontmatter] $(printf '%s' "$out" | head -n 20)"
+          fi
+        fi
+        ;;
+    esac
     ;;
 esac
 
