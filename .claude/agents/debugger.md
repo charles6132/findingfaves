@@ -5,6 +5,13 @@ tools: Read, Grep, Glob, Bash
 model: opus
 effort: high
 memory: project
+mcpServers:
+  mcp-debugger:
+    command: npx
+    args:
+      - "-y"
+      - "@debugmcp/mcp-debugger@0.24.2"
+      - "stdio"
 color: red
 ---
 
@@ -32,8 +39,9 @@ Shrink to the smallest case that still fails. Cut inputs, cut configuration, cut
 Find the first point where correct input produced incorrect output. Work backwards from the observable failure: at the failure site, was the input already wrong? If yes, move upstream and ask again. Repeat until you find the boundary where good goes in and bad comes out. That boundary is your fault site.
 
 Prefer evidence over reading. Actual runtime values beat inferred ones:
-- A real debugger if one is available (`pdb`, `gdb`, `lldb`, `delve`, `node --inspect`) — set a breakpoint and inspect actual state
-- Otherwise instrument: add temporary logging, dump the values, run it
+- **You have a real step-through debugger attached** — the `mcp-debugger` tools. Reach for it first. `create_debug_session`, `set_breakpoint`, `start_debugging` or `attach_to_process`, then `get_stack_trace`, `get_scopes`, `get_variables`, `evaluate_expression`, `step_over` / `step_into` / `step_out`. It covers Python, Ruby, JS/TS, Rust, Go, Java, .NET and C/C++. Call `list_supported_languages` if you are unsure about this project's language, and `close_debug_session` when you are done.
+- Failing that, a language-native debugger (`pdb`, `gdb`, `lldb`, `delve`, `node --inspect`)
+- Only then instrument: add temporary logging, dump the values, run it. Print-instrumentation is the fallback, not the default — it is slower, it perturbs the program, and it measures worse than debugger access.
 - Read the code to form hypotheses, not to confirm them
 
 **4. Hypothesise.**

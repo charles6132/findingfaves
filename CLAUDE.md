@@ -10,7 +10,7 @@ decided and why.
 
 | Path | What it is |
 |---|---|
-| `.claude/agents/` | `debugger`, `implementer`, `analyzer` — built, wired, unmeasured |
+| `.claude/agents/` | `debugger`, `implementer`, `analyzer`, plus `scout` and `researcher` for staged research — built, wired, unmeasured |
 | `.claude/hooks/` | `verify-edit.sh` (PostToolUse), `verify-done.sh` (Stop), `check-frontmatter.py` |
 | `.claude/skills/` | `research-agent` (narrative), `research-compare` (matrix), `research-engines/` (shared reference, no SKILL.md on purpose) |
 | `.claude/skills/_archive/` | retired skills, nested two levels deep so they are not discoverable |
@@ -58,6 +58,17 @@ the artifacts they produced.
 7. **Do not diagnose from a directory listing while the writers are still
    running.** An earlier postmortem called the work a total loss. Four of five
    agents had in fact written their notes, after the failure notices arrived.
+
+## Turn count is the budget
+
+`scout` (10) and `researcher` (20) carry `maxTurns` in their frontmatter, where
+the harness enforces it. Prose budgets in a skill body are advice; these are not.
+If you change a cap, change it in both the agent file and the skill that
+dispatches it — `.claude/skills/research-agent/SKILL.md` repeats them.
+
+The `debugger` agent has `mcp-debugger` attached over stdio for real
+step-through debugging. It is `@debugmcp/mcp-debugger` — **not** the bare
+`mcp-debugger` on npm, which is an unrelated Postman runner. Requires Node 22+.
 
 ## Agent memory — and why it must be committed
 
@@ -123,7 +134,9 @@ repo does not have yet.
 ## Open work
 
 `docs/research/agent-spec.md` §9 and `docs/research/agent-platform-skills.md` §9
-carry the live lists. The highest-value items outstanding: attach `mcp-debugger`
-to the `debugger` agent (worth +11–15 pp), repoint the local router off an
-exhausted provider, and exercise the hooks under the live harness rather than by
-piping JSON at them.
+carry the live lists. The highest-value items outstanding: port or ship the three
+engine scripts, without which the research skills cannot run outside the desktop;
+run the staged research design once end to end so its 85–90% cost saving becomes
+a measurement rather than a model; repoint the local router off an exhausted
+provider; and exercise the hooks under the live harness rather than by piping
+JSON at them.

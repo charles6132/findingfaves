@@ -80,8 +80,22 @@ color: red
 
 **`memory: project`** writes to `.claude/agent-memory/debugger/`, persisting a bug-pattern library for this codebase across sessions. Measured effect of memory in the literature: **+3.9 to +5.25 pp**.
 
-### Recommended addition — not yet done
-Attach a **DAP/debugger MCP server** (`mcp-debugger`, MIT, 8 languages) via the `mcpServers` frontmatter field. Real debugger access is worth **+11–15 pp** on SWE-bench Lite. Without it the agent falls back to print-instrumentation, which the prompt already handles but which measures worse.
+### `mcp-debugger` — attached
+
+```yaml
+mcpServers:
+  mcp-debugger:
+    command: npx
+    args: ["-y", "@debugmcp/mcp-debugger@0.24.2", "stdio"]
+```
+
+A DAP-over-MCP step-through debugger, MIT, 8 languages (Python, Ruby, JS/TS, Rust, Go, Java, .NET, C/C++), 28 tools. The prompt's stage-3 evidence ladder now puts it first and demotes print-instrumentation to the fallback it should always have been.
+
+**Verify the package name, do not assume it.** Two packages answer to this name on npm. `mcp-debugger` (v1.0.0, node >=14) is *a Postman collection runner* whose repository field still reads `github.com/yourusername/…`. The researched project is **`@debugmcp/mcp-debugger`** (v0.24.2, node >=22, `github.com/debugmcp/mcp-debugger`, "Step-through debugging MCP server for LLMs"). Installing the bare name would have been silent and wrong.
+
+**Verified by handshake, not by reading the README.** `initialize` returns `debug-mcp-server` on protocol 2024-11-05 and `tools/list` returns 28 tools — `create_debug_session`, `set_breakpoint`, `start_debugging`, `attach_to_process` and the rest — matching the notes exactly. Requires Node 22+; the version is pinned deliberately at 0.x.
+
+**On the +11–15 pp.** That figure is debug-gym's, for real debugger access in general. The notes are explicit that **mcp-debugger itself publishes no quantitative benchmarks**, and that no public head-to-head of a DAP MCP server against print-debugging inside the same agent was found. So the expected gain is an extrapolation from a different system, not a measurement of this one. The mechanism is sound and the cost is a config block; the number is borrowed.
 
 ## 4. `implementer` — built
 
@@ -282,16 +296,16 @@ was in the checking code, and only running it found that too.
 
 ## 9. Open work, in priority order
 
-1. **Attach `mcp-debugger`** to `debugger` via `mcpServers` — the +11–15 pp lever, and the single highest-value upgrade left.
-2. **Ship the three engine scripts**, or port them — until then the research skills cannot run outside the desktop (§5.6). `merge_evidence.py` matters most; the two PowerShell scripts need a portable equivalent.
-3. **Run the staged research design once, end to end, and measure it.** The 85–90% cost reduction is modelled. Now that the caps are harness-enforced, one real run turns it into a number.
-4. **Redo the lost research leg** — published production system prompts and process patterns (see findings §7, `UNRECOVERABLE`). Use the staged design so it does not cost 26M tokens again.
-5. **Exercise the hooks under the live harness**, and cover the TypeScript and Rust branches (see §7).
-6. **Build an eval set** — needs ~50 merged PRs as a golden set, oracle hidden, run weekly. **Blocked: this repo has no merged PRs yet.** This is how you find out whether any of the above actually helps.
+1. **Ship the three engine scripts**, or port them — until then the research skills cannot run outside the desktop (§5.6). `merge_evidence.py` matters most; the two PowerShell scripts need a portable equivalent.
+2. **Run the staged research design once, end to end, and measure it.** The 85–90% cost reduction is modelled. Now that the caps are harness-enforced, one real run turns it into a number.
+3. **Redo the lost research leg** — published production system prompts and process patterns (see findings §7, `UNRECOVERABLE`). Use the staged design so it does not cost 26M tokens again.
+4. **Exercise the hooks under the live harness**, and cover the TypeScript and Rust branches (see §7).
+5. **Build an eval set** — needs ~50 merged PRs as a golden set, oracle hidden, run weekly. **Blocked: this repo has no merged PRs yet.** This is how you find out whether any of the above actually helps.
 
 ~~Execute the hooks against a real project~~ — done, §7.
 ~~Build `analyzer`~~ — done, §5.
+~~Attach `mcp-debugger`~~ — done, §3. Package identity and the MCP handshake were both verified; the expected gain was not, and is flagged as borrowed.
 ~~Restructure the deep-research skill per findings §5~~ — done, §5.5. `maxTurns` caps, staged scout→researcher execution, and write-early-rewrite are all in place; the measurement in step 3 is what remains.
 ~~Add the frontmatter parse check to a hook~~ — done, §7.1 (this was open work item 4 in `agent-platform-skills.md`, deliberately left until the branches merged).
 
-**Note on step 6:** nothing in this spec has been measured. The prompts encode findings from the literature, but whether *these* agents help *this* codebase is untested. The eval set is how that stops being a guess.
+**Note on step 5:** nothing in this spec has been measured. The prompts encode findings from the literature, but whether *these* agents help *this* codebase is untested. The eval set is how that stops being a guess.
