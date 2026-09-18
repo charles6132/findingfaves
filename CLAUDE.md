@@ -13,6 +13,7 @@ decided and why.
 | `.claude/agents/` | `debugger`, `implementer`, `analyzer`, plus `scout` and `researcher` for staged research — built, wired, unmeasured |
 | `.claude/hooks/` | `verify-edit.sh` (PostToolUse), `verify-done.sh` (Stop), `check-frontmatter.py` |
 | `.claude/skills/` | `research-agent` (narrative), `research-compare` (matrix), `research-engines/` (shared reference, no SKILL.md on purpose) |
+| `.claude/skills/defrag/` + `wrap/` | weekly review and end-of-session card update; `registry.py` holds the mechanics |
 | `.claude/skills/_archive/` | retired skills, nested two levels deep so they are not discoverable |
 | `docs/projects/` | project registry — cards, `_archive/`, and `registry.py` mechanics; see its README |
 | `docs/research/agent-spec.md` | **authoritative** on the agents and hooks |
@@ -147,6 +148,12 @@ other.
   with `_archive/README.md` recording what went and why.
 - **Shared knowledge between skills lives in a folder with no `SKILL.md`**, so it
   does not register as invocable. Referenced by path.
+- **Run `/wrap` before ending a session** that moved a project, while the work
+  is still in context. A `SessionEnd` hook cannot do this — compression needs a
+  model and a shell script does not have one.
+- **`registry.py brief`** is the start-of-day glance — blockers first, then next
+  actions. Deliberately a command and not a skill, so it costs no description
+  budget and nothing is loaded to run it.
 - **The Projects index above is generated.** Run `registry.py index --write`;
   never hand-edit between the markers. Project state belongs in a card, and a
   card's `## State` is *rewritten* and capped while its log is appended — a

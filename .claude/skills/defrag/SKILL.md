@@ -40,6 +40,13 @@ and one `mcp__Claude_Code_Remote__list_sessions` call with `mine: true`.
 Do **not** open project cards yet. Do not read any session. You are building a
 candidate list, not forming opinions.
 
+**If `list_sessions` is not available**, say so in your first line and stop
+pretending this is a full review. A scheduled run may fire without connector
+tools, and the session index is the whole input to Phases 1 and 4 — without it
+you can validate the registry and nothing else. Report a registry-only pass,
+name what is missing, and say the run needs re-firing from a session that has
+the tool. Do not silently produce a half-review that looks like a whole one.
+
 ## Phase 1 — Reconcile
 
 Put the two lists side by side and sort every item into exactly one bucket:

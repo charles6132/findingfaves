@@ -24,6 +24,7 @@ Commands:
     registry.py reopen SLUG
     registry.py check                             validate every card
     registry.py stale [--days N]                  cards untouched for N+ days
+    registry.py brief                             start-of-day glance — blockers, then next actions
 """
 
 from __future__ import annotations
@@ -313,6 +314,48 @@ def cmd_stale(args) -> int:
     return 0
 
 
+def cmd_brief(args) -> int:
+    """The start-of-day glance. Deliberately not a skill.
+
+    A daily brief of a registry that moves weekly would print the same lines
+    every morning. What changes day to day is the next action and the blocker,
+    so that is all this shows.
+
+    It cannot see sessions — blockers recorded by the harness live in
+    `needs_action` on the session index, which needs the CCR tool. This is the
+    registry's half; the defrag run is where the two get reconciled.
+    """
+    active = [(p, front(p)) for p in cards("active")]
+    if not active:
+        print("No active projects.")
+        return 0
+
+    blocked, clear = [], []
+    for path, f in sorted(active, key=lambda pair: pair[1].get("project", "")):
+        text = "\n".join(section(path, "Blocked on")).strip()
+        # Match the FIRST SENTENCE, not the whole block. "Nothing. The eval set
+        # is blocked on X, but nothing else is." is not a blocker, and comparing
+        # the whole string reported it as one.
+        first = text.split(".")[0].strip().lower()
+        (clear if first in ("nothing", "none", "n/a", "") else blocked).append((f, text))
+
+    if blocked:
+        print("BLOCKED")
+        for f, why in blocked:
+            print(f"  {f.get('project')}")
+            print(f"    {why.splitlines()[0]}")
+    if clear:
+        print("\nNEXT" if blocked else "NEXT")
+        for f, _ in clear:
+            nxt = "\n".join(section(find(str(f.get("project"))), "Next")).strip()
+            print(f"  {f.get('project'):<20} {nxt.splitlines()[0] if nxt else '(no next action set)'}")
+
+    n = len(cards("archived"))
+    if n:
+        print(f"\n{n} archived. `registry.py list --status archived` to see the shelf.")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -327,6 +370,7 @@ def main() -> int:
     p.set_defaults(fn=cmd_archive)
     p = sub.add_parser("reopen"); p.add_argument("slug"); p.set_defaults(fn=cmd_reopen)
     p = sub.add_parser("check"); p.set_defaults(fn=cmd_check)
+    p = sub.add_parser("brief"); p.set_defaults(fn=cmd_brief)
     p = sub.add_parser("stale"); p.add_argument("--days", type=int, default=21); p.set_defaults(fn=cmd_stale)
 
     args = ap.parse_args()
