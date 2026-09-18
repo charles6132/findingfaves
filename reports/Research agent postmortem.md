@@ -1,6 +1,6 @@
 # Postmortem: why the deep-research fan-out burned the token budget
 
-**Date:** 2026-09-17 · **Window:** 17:52–18:01 UTC (~8 minutes) · **Outcome:** session rate limit hit, all 5 agents killed, zero notes written
+**Date:** 2026-09-17 · **Window:** 17:52–18:01 UTC (~8 minutes) · **Outcome:** session rate limit hit, all 5 agents killed; 4 of 5 notes files survived, 1 leg lost
 
 ## The numbers
 
@@ -45,11 +45,22 @@ Contributing factors, in order of weight:
 3. **Five-way parallelism.** Didn't increase total tokens much, but compressed the entire burn into one 8-minute rate-limit window. Serialized, the same work might have stayed under the cap.
 4. **Opus for all five.** Highest-cost model on the leg of the work (search triage) that needs it least.
 
-## Second, independent bug: total work loss
+## Second, independent bug: write-on-end fragility
 
-All five agents died at the same step — their last messages were "I have enough material, writing the notes file." **They research into context and write notes once, at the end.** So a kill at 95% completion yields 0% of the output. 219 tool calls of real research evaporated.
+**CORRECTED 2026-09-18.** This section originally claimed all work was lost. That was wrong, and the error is instructive.
 
-This is a fragility bug independent of cost. Even on a successful run it means no partial progress is ever visible.
+Each agent accumulates findings in its context across dozens of tool calls, then serializes everything in a **single Write as its final action**. No incremental persistence. Any termination before that write — rate limit, timeout, crash, interrupt, `maxTurns` — loses everything, and the exposure window is the entire run.
+
+**What actually happened:**
+
+- All five agents returned `status: failed` with no result payload, and the notes directory was empty when checked at 18:00.
+- That check was taken **while the writers were still running**. Four of the five completed their writes at 18:00:58, 18:02:55, 18:03:35 and 18:05:33 — after the failure notifications arrived. **254 KB / 1,830 lines of notes survived** and are committed at `research_notes/Debug and coding agent design/`.
+- **One leg was lost outright:** `prompts_and_process_patterns.md` was never written. 43 tool calls, 72 turns, zero output.
+- **All five return summaries were lost**, which is why the coordinator saw failures rather than findings and misjudged the loss.
+
+**Corrected severity: 1 of 5 legs lost (20%), plus all hand-backs — not 100%.**
+
+Two lessons rather than one. The fragility is real and worth fixing (append per source, don't write once at the end). But the misdiagnosis came from **inferring completion state from a directory listing taken mid-flight** — the same premature-conclusion error the debugger agent's prompt is written to prevent.
 
 ## Verdict on the skill
 
@@ -64,7 +75,7 @@ But there is a structural weakness: that budget is **prose, not a constraint**. 
 | 1 | Cap scope at 2–3 key questions per researcher | Prompt discipline | ~60% |
 | 2 | Set `maxTurns: 20` on research subagents | **Hard enforcement** in the agent schema | Caps the tail |
 | 3 | Run researchers on `sonnet`, not `opus` | `model:` field | Large, on the cheapest-to-degrade leg |
-| 4 | Write notes incrementally, append-only | Prompt: "append after each source" | Eliminates total-loss failure |
+| 4 | Write notes incrementally, append-only | Prompt: "append after each source" | Removes the loss cliff |
 | 5 | Stage the work (see below) instead of 5-way parallel | Coordinator change | Spreads across rate windows |
 | 6 | Cap parallelism at 2–3 concurrent | Coordinator change | Avoids burst limit |
 
