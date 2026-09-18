@@ -39,20 +39,31 @@ Phases 1–3 shell out to three scripts that live beside `ENGINES.md`. Resolve
 2. `~/.claude/skills/research-engines/` otherwise (on the desktop this is a
    directory junction onto `~/.agents/skills`)
 
-| Script | Used by | Purpose |
+| Script | Used by | Status |
 |---|---|---|
-| `search.ps1` | researchers | the only sanctioned search path — trims results to four fields |
-| `merge_evidence.py` | Phase 2 | dedup and number the ledger without reading evidence into context |
-| `checkurls.ps1` | Phase 3 | parallel liveness check over every ledger URL |
+| `merge_evidence.py` | Phase 2 | **present**, portable Python, covered by `tests/run.sh` |
+| `check_urls.py` | Phase 3 | **present**, portable Python, covered by `tests/run.sh` |
+| `search.ps1` | researchers | **missing** — see below |
 
-⚠️ **Only `ENGINES.md` is present in this repository.** The three scripts exist
-on the desktop skills store and were not committed, and two of them are
-PowerShell, so this skill **cannot currently run end to end from a Linux
-checkout**. Check that `$ENGINES` actually contains them before Phase 1 and stop
-with a clear message if it does not. Do not improvise replacements mid-run: the
-evidence and ledger formats are consumed by `merge_evidence.py`, and a
-substitute that guesses at its behaviour will produce a ledger that looks right
-and is not.
+`merge_evidence.py` and `check_urls.py` were reimplemented from the contract in
+this file and in `ENGINES.md`, because the desktop originals were never
+committed and one of them was PowerShell. They are **not** the desktop scripts.
+If those resurface, diff before trusting either.
+
+**`search.ps1` cannot be reimplemented.** It wraps a SearXNG instance running on
+one specific machine, so there is nothing portable to write. When it is absent:
+
+- Use the **`WebSearch` tool** as the search path, and `WebFetch` to read pages.
+- `ENGINES.md` still governs credibility scoring, the blocked-engine list and
+  the failure ladder. Only the transport changes.
+- Record engines honestly. With `WebSearch` you get one engine, so
+  `engines: ["websearch"]` and `agreement: 1` — do not invent cross-engine
+  agreement that did not happen. The ledger already refuses to let agreement
+  promote credibility, so a single-engine run is weaker evidence and should
+  look like it.
+
+With that substitution the pipeline runs end to end on Linux. It has still never
+been run end to end — that is open work, not a claim.
 
 ## Phase 0 — Scope and plan
 
@@ -116,10 +127,11 @@ Each researcher prompt must contain:
   the open-ended search flailing that produced most of the overrun.
 - The time range.
 - **Engine recipes**: read `$ENGINES/ENGINES.md`
-  and follow it. Search **only** through `$ENGINES/search.ps1` — never
-  hit the SearXNG endpoint directly, and never pipe raw `format=json` into the
-  conversation. The script returns the same results trimmed to four fields; the
-  raw reply is ~15x larger and gets re-read every turn by every researcher.
+  and follow it. Where `$ENGINES/search.ps1` exists, search **only** through
+  it — never hit the SearXNG endpoint directly, and never pipe raw
+  `format=json` into the conversation; the script trims results to four fields
+  and the raw reply is ~15x larger, re-read every turn by every researcher.
+  Where it does not exist, use `WebSearch`.
   ENGINES.md lists the direct-fetch fallbacks, which engines are blocked, the
   failure ladder, and the credibility scale. That file is the single source of
   truth — if a recipe is wrong, fix it there, not here.
@@ -200,7 +212,7 @@ Each researcher prompt must contain:
 Run the merger. Do **not** read the evidence files into context and merge by hand:
 
 ```
-python "$ENGINES/merge_evidence.py" "{topic_slug}"
+python3 "$ENGINES/merge_evidence.py" "{topic_slug}"
 ```
 
 It dedups by normalized URL (strips tracking params, drops fragments), unions
@@ -225,7 +237,7 @@ Before writing anything:
 1. **URL liveness**: check every URL in the ledger in ONE call —
 
    ```
-   powershell -NoProfile -File "$ENGINES/checkurls.ps1" "{topic_slug}/ledger.json"
+   python3 "$ENGINES/check_urls.py" "{topic_slug}/ledger.json"
    ```
 
    It pulls the URLs out of the ledger itself, checks them in parallel, and

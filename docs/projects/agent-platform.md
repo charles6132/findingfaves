@@ -13,20 +13,18 @@ sessions:
 
 ## State
 
-Five subagents and five hooks, all wired. `debugger`, `implementer`, `analyzer`,
-plus `scout` and `researcher` carrying harness-enforced `maxTurns`. Hooks cover
-per-edit lint, a Stop-gate on tests, a frontmatter parse check, and a
-SubagentStop hook that writes memory the read-only agents cannot write
-themselves. `mcp-debugger` attached over stdio, verified by handshake.
+Five subagents and five hooks, all wired, plus a project registry, a weekly
+`defrag` ritual and a `wrap` skill. `tests/run.sh` covers it — **84 checks**,
+run by the Stop hook, which until today had never guarded this repo at all.
 
-Added 2026-09-18: the project registry and the `defrag` skill — this file is a
-product of it.
+`merge_evidence.py` and `check_urls.py` are ported to portable Python and
+tested, so the research pipeline can run on Linux; only `search.ps1` is
+unportable and `WebSearch` is the documented fallback.
 
-Three branches consolidated onto `claude/cowork-handoff-implementation-0fhik6`.
+Friday defrag Routine live on `claude-opus-5` with a REPO/TOOLS/MODE preflight.
 
-**Still unmeasured on this codebase.** Every hook was validated by execution and
-every one carried a real bug that reading had missed — five so far. That is the
-only claim this project can currently make.
+**Still unmeasured on this codebase, and the research pipeline has never run end
+to end.** Nine bugs found so far, every one by execution and none by reading.
 
 ## Next
 
@@ -49,3 +47,9 @@ claude-opus-5 after a diagnostic fire came back on sonnet. Fired sessions carry
 no git sources and no connector tools, so the prompt now opens with a
 REPO/TOOLS/MODE preflight. Whether the first diagnostic run actually had the
 repo is still unread — it finished review-ready at 112K tokens.
+
+### 2026-09-18 (later)
+Ported the two missing engine scripts and tested the TypeScript and Rust hook
+branches, which turned out to be correct. Two more bugs: the ledger cited raw
+URLs with tracking params still attached, and the determinism test was flaky on
+a timestamp. Suite at 84, three consecutive clean runs.

@@ -198,15 +198,35 @@ schema. That is findings §3 Bug B, fixed at the point where it actually bit.
 which is not in this repository (see §5.6), so the contract was preserved exactly
 rather than improved blind.
 
-### 5.6 What the research skills still cannot do here
+### 5.6 The research skills, and what was missing
 
-`.claude/skills/research-agent/` shells out to `search.ps1`, `merge_evidence.py`
-and `checkurls.ps1`. **Only `ENGINES.md` was committed** — the scripts live in
-the desktop skills store, and two of them are PowerShell. The skill therefore
-cannot run end to end from a Linux checkout. The skill now resolves an
-`$ENGINES` directory instead of hardcoding one machine's absolute paths, and
-says to stop with a clear message rather than improvising replacements for a
-merger whose behaviour nobody here can read.
+`.claude/skills/research-agent/` shells out to three scripts. Only `ENGINES.md`
+was ever committed, so the skill could not run outside one Windows machine.
+
+**Two of the three are now ported**, reimplemented from the contract in the
+skill and in `ENGINES.md`, in portable Python, covered by `tests/run.sh`:
+
+- `merge_evidence.py` — dedups by normalized URL, unions engines, keeps the
+  highest credibility assigned, numbers the survivors. Agreement is recorded and
+  **never promotes credibility** — a forum found by three engines is still a
+  forum. A truncated evidence file (a researcher killed mid-write) is reported
+  loudly and the rest still merge.
+- `check_urls.py` — parallel liveness over every ledger URL in one call, HEAD
+  then GET, reporting status codes rather than guessing. 3–13% of citations in
+  deep-research output are fabricated URLs; this is the cheap check.
+
+A bug found by running it: the ledger stored the raw first-seen URL, so a report
+would have cited `...?utm_source=news#intro`. Normalizing for dedup and then
+citing the dirty URL defeats the point at the only moment it matters. The
+normalized URL is now what gets cited, with the original kept alongside.
+
+**`search.ps1` cannot be ported.** It wraps a SearXNG instance on one machine.
+The skill now falls back to the `WebSearch` tool, with instructions to record
+`engines: ["websearch"]` and `agreement: 1` honestly rather than inventing
+cross-engine agreement that did not happen.
+
+With that substitution the pipeline can run on Linux. It has still never been
+run end to end — that remains open work, not a claim.
 
 ## 6. Delegation flow
 
@@ -352,16 +372,17 @@ rather than escaping the memory directory).
 
 ## 9. Open work, in priority order
 
-1. **Ship the three engine scripts**, or port them — until then the research skills cannot run outside the desktop (§5.6). `merge_evidence.py` matters most; the two PowerShell scripts need a portable equivalent.
-2. **Run the staged research design once, end to end, and measure it.** The 85–90% cost reduction is modelled. Now that the caps are harness-enforced, one real run turns it into a number.
-3. **Redo the lost research leg** — published production system prompts and process patterns (see findings §7, `UNRECOVERABLE`). Use the staged design so it does not cost 26M tokens again.
-4. **Exercise the hooks under the live harness**, and cover the TypeScript and Rust branches (see §7).
-5. **Build an eval set** — needs ~50 merged PRs as a golden set, oracle hidden, run weekly. **Blocked: this repo has no merged PRs yet.** This is how you find out whether any of the above actually helps.
+1. **Run the staged research design once, end to end, and measure it.** The 85–90% cost reduction is modelled, and the pipeline has never executed as a whole. Now that the caps are harness-enforced and the merger and link-checker are portable, one real run turns the estimate into a number and proves the pipeline at the same time.
+2. **Redo the lost research leg** — published production system prompts and process patterns (see findings §7, `UNRECOVERABLE`). Use the staged design so it does not cost 26M tokens again.
+3. **Exercise the hooks under the live harness.** `tests/run.sh` covers them by piping JSON; a real harness run is still worth doing.
+4. **Build an eval set** — needs ~50 merged PRs as a golden set, oracle hidden, run weekly. **Blocked: this repo has no merged PRs yet.** This is how you find out whether any of the above actually helps.
 
 ~~Execute the hooks against a real project~~ — done, §7.
 ~~Build `analyzer`~~ — done, §5.
+~~Port the engine scripts~~ — done, §5.6. `merge_evidence.py` and `check_urls.py` are portable and tested; `search.ps1` cannot be ported and `WebSearch` is the documented fallback.
+~~Cover the TypeScript and Rust hook branches~~ — done. Seven cases in `tests/run.sh`; unlike the Go branch, both were already correct.
 ~~Attach `mcp-debugger`~~ — done, §3. Package identity and the MCP handshake were both verified; the expected gain was not, and is flagged as borrowed.
 ~~Restructure the deep-research skill per findings §5~~ — done, §5.5. `maxTurns` caps, staged scout→researcher execution, and write-early-rewrite are all in place; the measurement in step 3 is what remains.
 ~~Add the frontmatter parse check to a hook~~ — done, §7.1 (this was open work item 4 in `agent-platform-skills.md`, deliberately left until the branches merged).
 
-**Note on step 5:** nothing in this spec has been measured. The prompts encode findings from the literature, but whether *these* agents help *this* codebase is untested. The eval set is how that stops being a guess.
+**Note on step 4:** nothing in this spec has been measured. The prompts encode findings from the literature, but whether *these* agents help *this* codebase is untested. The eval set is how that stops being a guess.

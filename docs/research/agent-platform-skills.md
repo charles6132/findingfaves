@@ -262,14 +262,19 @@ names are not routing IDs and `--output json` truncates.
    `SKILL.md` and `.claude/agents/*.md`. See `agent-spec.md` §7.1 — it was
    validated by execution across 8 cases, and one false positive in the checker
    itself was found and fixed that way.
-5. **The engine scripts were never committed.** `ENGINES.md` shipped; `search.ps1`,
+5. ~~**The engine scripts were never committed.**~~ **Mostly fixed.** `ENGINES.md` shipped; `search.ps1`,
    `merge_evidence.py` and `checkurls.ps1` did not. They exist only in the
    desktop skills store, and two of the three are PowerShell, so the research
    skills cannot run end to end from a Linux checkout at all. `research-agent`
    now resolves an `$ENGINES` directory rather than hardcoding
    `C:\Users\Charles\...`, and stops with a clear message when the scripts are
    absent instead of improvising a replacement for a merger nobody here can read.
-   Porting `merge_evidence.py` is the unblocking move.
+   `merge_evidence.py` and `check_urls.py` have since been reimplemented in
+   portable Python from the documented contract and are covered by
+   `tests/run.sh` — see `agent-spec.md` §5.6. They are not the desktop
+   originals; diff them if those resurface. `search.ps1` cannot be ported
+   because it wraps a SearXNG instance on one machine, so the skill now falls
+   back to the `WebSearch` tool and records a single engine honestly.
 
 6. **Neither research skill has been run end to end since consolidation.** The validator
    was smoke-tested directly (passes a complete file, fails an incomplete one naming the

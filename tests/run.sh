@@ -133,6 +133,52 @@ expect_code "exits 0 on a nonexistent file" 0 -- \
 expect_code "exits 0 when file_path is absent" 0 -- fire "$VE" "$FM" '{"tool_input":{}}'
 expect_code "exits 0 on an empty payload" 0 -- fire "$VE" "$FM" '{}'
 
+# --------------------------------------- verify-edit TS/Rust (were untested)
+group "verify-edit.sh — TypeScript and Rust branches"
+
+# Stub the linters rather than installing them. What was never tested is the
+# HOOK's branch logic, not eslint or cargo themselves.
+TS="$WORK/ts"; mkdir -p "$TS/node_modules/.bin"
+printf '{"name":"t"}\n' > "$TS/package.json"
+printf '{}\n'           > "$TS/tsconfig.json"
+printf '#!/usr/bin/env bash\necho "$1: 1:1  error  Unexpected var"\nexit 1\n' > "$TS/node_modules/.bin/eslint"
+printf '#!/usr/bin/env bash\necho "a.ts(3,7): error TS2322: not assignable"\nexit 2\n' > "$TS/node_modules/.bin/tsc"
+chmod +x "$TS/node_modules/.bin/eslint" "$TS/node_modules/.bin/tsc"
+echo 'var x = 1' > "$TS/a.ts"; echo 'var y = 2' > "$TS/a.js"
+
+expect_match "surfaces eslint findings on a .ts file" "eslint" -- \
+  fire "$VE" "$TS" "$(jq -n --arg f "$TS/a.ts" '{tool_input:{file_path:$f}}')"
+expect_match "surfaces tsc findings on a .ts file" "tsc" -- \
+  fire "$VE" "$TS" "$(jq -n --arg f "$TS/a.ts" '{tool_input:{file_path:$f}}')"
+expect_match "covers .js as well as .ts" "eslint" -- \
+  fire "$VE" "$TS" "$(jq -n --arg f "$TS/a.js" '{tool_input:{file_path:$f}}')"
+
+# A project with no local linters installed must degrade silently, not error.
+TSBARE="$WORK/tsbare"; mkdir -p "$TSBARE"
+printf '{"name":"t"}\n' > "$TSBARE/package.json"; echo 'var x = 1' > "$TSBARE/a.ts"
+expect_empty "stays silent when no local linter is installed" -- \
+  fire "$VE" "$TSBARE" "$(jq -n --arg f "$TSBARE/a.ts" '{tool_input:{file_path:$f}}')"
+
+# tsc must not run without a tsconfig.
+TSNOCFG="$WORK/tsnocfg"; mkdir -p "$TSNOCFG/node_modules/.bin"
+printf '{"name":"t"}\n' > "$TSNOCFG/package.json"
+cp "$TS/node_modules/.bin/tsc" "$TSNOCFG/node_modules/.bin/tsc"
+echo 'var x = 1' > "$TSNOCFG/a.ts"
+expect_no_match "does not run tsc without a tsconfig.json" "tsc" -- \
+  fire "$VE" "$TSNOCFG" "$(jq -n --arg f "$TSNOCFG/a.ts" '{tool_input:{file_path:$f}}')"
+
+RS="$WORK/rs"; mkdir -p "$RS/bin"
+printf '[package]\nname = "t"\n' > "$RS/Cargo.toml"
+printf '#!/usr/bin/env bash\necho "error[E0308]: mismatched types"\nexit 101\n' > "$RS/bin/cargo"
+chmod +x "$RS/bin/cargo"; echo 'fn main() {}' > "$RS/a.rs"
+
+rustfire() { printf '%s' "$(jq -n --arg f "$1" '{tool_input:{file_path:$f}}')" \
+  | PATH="$RS/bin:$PATH" CLAUDE_PROJECT_DIR="$2" "$VE"; }
+expect_match "surfaces cargo check findings on a .rs file" "cargo" -- rustfire "$RS/a.rs" "$RS"
+
+RSBARE="$WORK/rsbare"; mkdir -p "$RSBARE"; echo 'fn main() {}' > "$RSBARE/a.rs"
+expect_empty "stays silent on a .rs file with no Cargo.toml" -- rustfire "$RSBARE/a.rs" "$RSBARE"
+
 # ------------------------------------------------------------ persist-memory
 group "persist-memory.sh"
 
@@ -299,6 +345,76 @@ expect_match "the generated index names the project" "alpha" -- R index
 : > "$REG/CLAUDE.md"
 expect_code "index --write fails loudly with no markers" 1 -- R index --write
 expect_code "piping output to head does not traceback" 0 -- bash -c "python3 '$REG/.claude/skills/defrag/registry.py' list | head -1"
+
+# ------------------------------------------------- research engine scripts
+group "merge_evidence.py and check_urls.py"
+
+ME="$ROOT/.claude/skills/research-engines/merge_evidence.py"
+CU="$ROOT/.claude/skills/research-engines/check_urls.py"
+TOP="$WORK/topic"; mkdir -p "$TOP/evidence"
+
+cat > "$TOP/evidence/q1.json" <<'JSON'
+{"sub_question":"What is X?","findings":[
+ {"claim":"X is a thing.","sources":["https://docs.example.com/x?utm_source=n&v=2#intro"],
+  "credibility":"LOW","engines":["duckduckgo"],"uncertain":false},
+ {"claim":"X has parts.","sources":["https://blog.example.org/p/","https://docs.example.com/x?v=2"],
+  "credibility":"MEDIUM","engines":["bing"],"uncertain":false}],
+ "blocked_engines":["yandex"],"queries_used":["x"],"searches_run":3,"pages_fetched":4,"turns_used":5}
+JSON
+cat > "$TOP/evidence/q2.json" <<'JSON'
+{"sub_question":"Who made X?","findings":[
+ {"claim":"Acme.","sources":["https://DOCS.example.com:443/x?v=2&fbclid=a"],
+  "credibility":"HIGH","engines":["google","brave"],"uncertain":false},
+ {"claim":"A forum says so.","sources":["https://forum.example.net/t/1"],
+  "credibility":"LOW","engines":["google","brave","bing"],"uncertain":true}],
+ "blocked_engines":[],"queries_used":["who"],"searches_run":2,"pages_fetched":3,"turns_used":4}
+JSON
+printf '{"truncated": [' > "$TOP/evidence/q3.json"
+
+expect_code  "merges evidence into a ledger" 0 -- python3 "$ME" "$TOP"
+expect_match "reports a truncated leg loudly" "UNREADABLE" -- python3 "$ME" "$TOP"
+
+led="$TOP/ledger.json"
+q() { python3 -c "import json,sys;d=json.load(open('$led'));print($1)"; }
+
+[ "$(q "len(d['sources'])")" = "3" ] \
+  && ok "dedups tracking params, fragments, case and default port into one source" \
+  || bad "dedups tracking params, fragments, case and default port into one source" "got $(q "len(d['sources'])")"
+[ "$(q "[s['credibility'] for s in d['sources'] if 'docs.example.com' in s['url']][0]")" = "HIGH" ] \
+  && ok "keeps the highest credibility any researcher assigned" \
+  || bad "keeps the highest credibility any researcher assigned"
+[ "$(q "[s['agreement'] for s in d['sources'] if 'docs.example.com' in s['url']][0]")" = "4" ] \
+  && ok "unions the engines that found a source" \
+  || bad "unions the engines that found a source"
+[ "$(q "[s['credibility'] for s in d['sources'] if 'forum' in s['url']][0]")" = "LOW" ] \
+  && ok "engine agreement never promotes credibility" \
+  || bad "engine agreement never promotes credibility" "a forum found by 3 engines is still a forum"
+[ "$(q "[s['url'] for s in d['sources'] if 'docs.example' in s['url']][0]")" = "https://docs.example.com/x?v=2" ] \
+  && ok "cites the normalized url, not the raw one" \
+  || bad "cites the normalized url, not the raw one" "got $(q "[s['url'] for s in d['sources'] if 'docs.example' in s['url']][0]")"
+[ "$(q "d['legs_merged']")" = "2" ] && ok "merges the readable legs and counts them" \
+                                   || bad "merges the readable legs and counts them"
+
+# Compare everything EXCEPT `generated`. That field is a wall-clock stamp, so
+# a byte-for-byte diff fails whenever two runs straddle a second boundary —
+# which made this test pass or fail depending on timing. The property under
+# test is stable ORDERING and numbering, not a reproducible timestamp.
+strip_ts() { python3 -c "
+import json,sys
+d=json.load(open(sys.argv[1])); d.pop('generated',None)
+print(json.dumps(d,sort_keys=True))" "$1"; }
+strip_ts "$led" > "$WORK/ledger.first"; python3 "$ME" "$TOP" >/dev/null
+strip_ts "$led" > "$WORK/ledger.second"
+diff -q "$WORK/ledger.first" "$WORK/ledger.second" >/dev/null \
+  && ok "is deterministic — same ordering and numbering on a re-run" \
+  || bad "is deterministic — same ordering and numbering on a re-run"
+
+expect_code "fails loudly with no evidence directory" 1 -- python3 "$ME" "$WORK/nothing-here"
+
+expect_match "check_urls extracts urls from a ledger" "checked 3" -- python3 "$CU" "$led" --timeout 1
+printf 'https://a.example\n# comment\nhttps://b.example\n' > "$WORK/urls.txt"
+expect_match "check_urls reads a plain url list too" "checked 2" -- python3 "$CU" "$WORK/urls.txt" --timeout 1
+expect_code  "check_urls fails loudly on a missing file" 1 -- python3 "$CU" "$WORK/nope.json"
 
 # ------------------------------------------------------------------ summary
 printf '\n%s\n' "----------------------------------------"

@@ -12,7 +12,7 @@ decided and why.
 |---|---|
 | `.claude/agents/` | `debugger`, `implementer`, `analyzer`, plus `scout` and `researcher` for staged research — built, wired, unmeasured |
 | `.claude/hooks/` | `verify-edit.sh` (PostToolUse), `verify-done.sh` (Stop), `check-frontmatter.py` |
-| `.claude/skills/` | `research-agent` (narrative), `research-compare` (matrix), `research-engines/` (shared reference, no SKILL.md on purpose) |
+| `.claude/skills/` | `research-agent` (narrative), `research-compare` (matrix), `research-engines/` (ENGINES.md + `merge_evidence.py`/`check_urls.py`; no SKILL.md on purpose) |
 | `.claude/skills/defrag/` + `wrap/` | weekly review and end-of-session card update; `registry.py` holds the mechanics |
 | `.claude/skills/_archive/` | retired skills, nested two levels deep so they are not discoverable |
 | `docs/projects/` | project registry — cards, `_archive/`, and `registry.py` mechanics; see its README |
@@ -183,9 +183,8 @@ repo does not have yet.
 ## Open work
 
 `docs/research/agent-spec.md` §9 and `docs/research/agent-platform-skills.md` §9
-carry the live lists. The highest-value items outstanding: port or ship the three
-engine scripts, without which the research skills cannot run outside the desktop;
-run the staged research design once end to end so its 85–90% cost saving becomes
-a measurement rather than a model; repoint the local router off an exhausted
-provider; and exercise the hooks under the live harness rather than by piping
-JSON at them.
+carry the live lists. The highest-value items outstanding: run the staged research
+design once end to end, which now proves the pipeline and turns its modelled
+85–90% cost saving into a measurement in the same pass; repoint the local router
+off an exhausted provider; and exercise the hooks under the live harness rather
+than by piping JSON at them.
