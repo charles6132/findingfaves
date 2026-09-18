@@ -25,7 +25,12 @@ git rev-parse --git-dir >/dev/null 2>&1 || exit 0
 [ -z "$(git status --porcelain 2>/dev/null)" ] && exit 0
 
 # Detect the project's own test command. No detection -> no opinion.
-if   [ -f package.json ] && jq -e '.scripts.test' package.json >/dev/null 2>&1; then
+# A repo's own suite wins over an inferred one. Without this branch the hook
+# no-ops here entirely — this project has no package.json, Cargo.toml, go.mod
+# or pyproject, so the Stop gate has never actually guarded it.
+if   [ -x tests/run.sh ] || [ -f tests/run.sh ]; then
+  cmd="bash tests/run.sh"
+elif [ -f package.json ] && jq -e '.scripts.test' package.json >/dev/null 2>&1; then
   cmd="npm test --silent"
 elif [ -f Cargo.toml ]; then
   cmd="cargo test --quiet"

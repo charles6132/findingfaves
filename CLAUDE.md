@@ -16,6 +16,7 @@ decided and why.
 | `.claude/skills/defrag/` + `wrap/` | weekly review and end-of-session card update; `registry.py` holds the mechanics |
 | `.claude/skills/_archive/` | retired skills, nested two levels deep so they are not discoverable |
 | `docs/projects/` | project registry — cards, `_archive/`, and `registry.py` mechanics; see its README |
+| `tests/run.sh` | the suite — 64 checks over the hooks, the registry and the repo's own invariants |
 | `docs/research/agent-spec.md` | **authoritative** on the agents and hooks |
 | `docs/research/debug-coding-agent-findings.md` | **authoritative** on the evidence and the token-cost incident |
 | `docs/research/agent-platform-skills.md` | **authoritative** on skills and on what the local model router can actually reach |
@@ -148,6 +149,9 @@ other.
   with `_archive/README.md` recording what went and why.
 - **Shared knowledge between skills lives in a folder with no `SKILL.md`**, so it
   does not register as invocable. Referenced by path.
+- **`bash tests/run.sh` is the suite.** The Stop hook runs it, so a red suite
+  refuses to let a turn end. Seven bugs so far were found by running these
+  scripts and none by reading them — add a case whenever you fix one.
 - **Run `/wrap` before ending a session** that moved a project, while the work
   is still in context. A `SessionEnd` hook cannot do this — compression needs a
   model and a shell script does not have one.
