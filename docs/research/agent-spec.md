@@ -18,7 +18,7 @@ A set of Claude Code subagents that make a codebase debuggable and changeable wi
 
 **Diagnosis and repair are separate agents, and the debugger has no edit tools.**
 
-The dominant failure mode of debugging agents is shortcutting to a plausible patch before the cause is established. Removing `Edit`/`Write` from the debugger's tool allowlist makes that *structurally impossible* rather than merely discouraged. This is the same principle as §7's hooks: constraints beat instructions.
+The dominant failure mode of debugging agents is shortcutting to a plausible patch before the cause is established. Removing `Edit`/`Write` from the debugger's tool allowlist makes that *much harder* rather than merely discouraged. Note the honest limit: the debugger still has `Bash`, and `sed -i` is an edit — so this is a strong speed bump, not an impossibility. Earlier drafts of this document claimed the latter. This is the same principle as §7's hooks: constraints beat instructions.
 
 **Evidence, with a caveat.** General multi-agent decomposition is *not* a free win — measured cost multipliers of 4–220x over single-agent, and both architectures sit at the top of leaderboards. But for debugging specifically the evidence runs the other way: the strongest interactive-debugging results come from *delegating debugging to a subagent* rather than having the main agent step through interactively. So this split is justified for the debug case on its own merits, not as a general architectural preference. **Do not generalize it into splitting everything into subagents.**
 
@@ -35,7 +35,8 @@ The dominant failure mode of debugging agents is shortcutting to a plausible pat
 ├── hooks/
 │   ├── verify-edit.sh       ✅ built + validated
 │   ├── verify-done.sh       ✅ built + validated
-│   └── check-frontmatter.py ✅ built + validated
+│   ├── check-frontmatter.py ✅ built + validated
+│   └── persist-memory.sh    ✅ built + validated
 ├── skills/                  ← from the desktop session; see agent-platform-skills.md
 └── settings.json            ✅ wires both hooks
 
@@ -234,6 +235,7 @@ Automatic delegation is driven **entirely by the `description` field**. Keep des
 | `verify-edit.sh` | `PostToolUse` | `Edit\|Write\|NotebookEdit` | Per-file lint/typecheck after every edit; feeds failures back via `hookSpecificOutput.additionalContext` |
 | `verify-done.sh` | `Stop` | (all) | Runs the project test suite; **exit 2 refuses to let the turn end** on red |
 | `check-frontmatter.py` | via `verify-edit.sh` | `.claude/agents/*.md`, `*/SKILL.md` | Fails a silently-broken YAML frontmatter loudly — see §7.1 |
+| `persist-memory.sh` | `SubagentStop` | (all) | Writes an agent's `## Memory` block to its memory file — see §7.2 |
 
 **`verify-edit.sh`** — detects project type from the edited file's extension and the presence of `pyproject.toml` / `package.json` / `go.mod` / `Cargo.toml`. Runs only fast file-scoped checks (ruff, mypy, eslint, tsc, gofmt, go vet, cargo check, shellcheck), never the full suite, because it fires on every edit. Exits 0 always — `PostToolUse` cannot block, so the useful channel is context injection.
 
@@ -287,6 +289,60 @@ markdown, a real repo agent, and a missing checker. One false positive surfaced
 during validation and was fixed — a bare `tools:` introducing a block value is
 legal YAML and was briefly flagged. Which is the §7 lesson twice over: the bug
 was in the checking code, and only running it found that too.
+
+### 7.2 `persist-memory.sh` — the memory the agents could not write
+
+**The defect.** All three memory-enabled agents ended their prompts with an
+instruction to update their agent memory. Two of them could not.
+
+The docs say that with `memory` enabled, "Read, Write, and Edit tools are
+automatically enabled so the subagent can manage its memory files" — but an
+explicit `tools:` allowlist takes precedence, so an agent that omits `Write`
+does not get it back. Which means:
+
+| Agent | Tools | Could write its memory? |
+|---|---|---|
+| `implementer` | …`Edit, Write` | yes |
+| `debugger` | `Read, Grep, Glob, Bash` | only via `Bash` — a route the design never intended |
+| `analyzer` | `Read, Grep, Glob` | **no. At all.** |
+
+The analyzer's closing instruction was a guaranteed no-op — the same silent
+shape as the dead `gofmt` check in §7. Reading memory was never affected; the
+harness injects `MEMORY.md` into the system prompt with no tool involved.
+
+**The fix.** The harness writes it. Agents close their report with a `## Memory`
+block; a `SubagentStop` hook extracts that block and appends it. No tool grant,
+so the analyzer's read-only allowlist — the thing that makes it trustworthy —
+stays intact. The agent decides *what* is worth remembering; the hook decides
+*where* it goes.
+
+Uses `last_assistant_message` and `agent_type` from the hook payload. Notably
+the docs warn **against** reading `transcript_path` for this, since the
+transcript is written asynchronously and can lag the turn that just ended — the
+obvious implementation would have been intermittently empty.
+
+**Entries are newest-first, deliberately.** Only the first 200 lines or 25 KB of
+`MEMORY.md` is injected, so appending at the bottom would push new knowledge out
+of the window as the file grew. Capped at 400 lines. `implementer` is excluded
+from the hook because it has real `Write` and manages its own file.
+
+**Validated by execution — 11 cases, and it found two bugs in itself.**
+
+1. `set -o pipefail` plus a group ending in a bare `[ -n "$existing" ] && …`
+   test. When the file did not yet exist the test was false, so the group exited
+   1, `pipefail` failed the whole pipeline, the `|| exit 0` fired, and the `mv`
+   never ran. The hook wrote a temp file, abandoned it, and exited 0. **The
+   first run of a brand-new memory file silently did nothing.**
+2. Trimming blank lines with `tac`. The block is printed without a trailing
+   newline, so reversing it joined the last two lines into one and reversed
+   their order — corrupting the entry while still looking plausible.
+
+Both passed `bash -n`. Neither was visible by reading. Passing cases: block
+extracted in order, stopped at the next heading rather than swallowing it,
+newest entry on top, growth capped, and no write at all for a missing block, an
+empty block, the excluded `implementer`, an unrecognised agent, a payload with
+no message, an empty payload, and an `agent_type` containing `../` (refused
+rather than escaping the memory directory).
 
 ## 8. What is deliberately NOT here
 

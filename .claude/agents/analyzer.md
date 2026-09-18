@@ -89,4 +89,6 @@ What you read, and what you did not. Be specific about the gap.
 
 ## After the analysis
 
-Update your agent memory with what you mapped: module responsibilities, the traces you followed, the risks you found, the places where naming misleads. Write it so the next session starts from your map instead of from the file listing. Keep it concise and factual — it is read at the start of every session, so noise costs you directly.
+Close your report with a `## Memory` block. A hook picks it up when you finish and appends it to your memory file — you have no write tool and do not need one.
+
+Put in it only what a future session would be worse off not knowing: module responsibilities, the traces you followed, the risks you found, the places where naming misleads. Write it so the next session starts from your work instead of from a blank page. Keep it short and factual — the top of that file is injected into your prompt at the start of every run, so noise costs you directly. If you learned nothing durable, omit the block entirely; an empty entry is worse than none.

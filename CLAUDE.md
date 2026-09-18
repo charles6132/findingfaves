@@ -76,6 +76,23 @@ step-through debugging. It is `@debugmcp/mcp-debugger` — **not** the bare
 persists to `.claude/agent-memory/<agent>/` across sessions. Measured value of
 memory in the literature is +3.9 to +5.25 pp.
 
+**Enabling memory does not grant an agent the tools to write it.** The docs say
+Read/Write/Edit are auto-enabled for memory files, but an explicit `tools:`
+allowlist wins — omit Write and it stays omitted. So the analyzer (`Read, Grep,
+Glob`) could not write its memory at all, and the debugger could only reach it
+through `Bash`, a route its design never intended. Both prompts said to update
+memory anyway; for the analyzer that was a guaranteed no-op.
+
+**So the harness writes it.** Agents end their report with a `## Memory` block
+and `.claude/hooks/persist-memory.sh` (SubagentStop) appends it to their file —
+no tool grant, read-only allowlists intact. Entries go **newest first** on
+purpose: only the first 200 lines are injected into the agent's prompt, so old
+entries at the top would push new ones out of sight. The file is capped at 400
+lines. `implementer` is deliberately excluded — it has real `Write` and manages
+its own file, so including it would double-write.
+
+Reading memory needs no tool at all; the harness injects `MEMORY.md` directly.
+
 This repository is worked from **ephemeral cloud containers** as well as from a
 desktop. A container is reclaimed after the session ends. **Agent memory that is
 not committed does not survive the session that wrote it** — so commit it, the
@@ -84,7 +101,9 @@ same as any other source file. Do not add it to `.gitignore`.
 ## Delegation
 
 ```
-Something is broken        → debugger (diagnose, prove; it has no Edit/Write)
+Something is broken        → debugger (diagnose, prove; no Edit/Write — but it
+                             has Bash, so "cannot patch" is a speed bump, not a
+                             guarantee. Do not restate it as one.)
                                 └→ implementer (apply the proposed fix, verify)
 Unfamiliar code, no defect → analyzer (map it, cite file:line) → implementer
 Change already understood  → implementer directly

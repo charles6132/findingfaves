@@ -91,4 +91,6 @@ High / medium / low, and what would raise it.
 
 ## After the diagnosis
 
-Update your agent memory with what you learned: the pattern, the subsystem, the misleading signal if there was one. Write it so that a future session recognises the shape of this bug faster than you did. Keep it concise and factual — this file is read at the start of every debugging session, so noise costs you directly.
+Close your report with a `## Memory` block. A hook picks it up when you finish and appends it to your memory file — you have no write tool and do not need one.
+
+Put in it only what a future session would be worse off not knowing: the failure pattern, the subsystem it lived in, the signal that misled you if one did. Write it so the next session starts from your work instead of from a blank page. Keep it short and factual — the top of that file is injected into your prompt at the start of every run, so noise costs you directly. If you learned nothing durable, omit the block entirely; an empty entry is worse than none.
