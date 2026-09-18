@@ -37,3 +37,15 @@ Port or ship the three engine scripts; run the staged research design once and m
 Nothing. The eval set is blocked on this repo having merged PRs, but nothing else is.
 
 <!-- LOG BELOW — append only, never loaded. -->
+
+### 2026-09-18
+Registry, defrag skill and wrap skill built; first defrag run done by hand.
+Test suite added (64 checks) and wired into the Stop hook, which had never
+actually guarded this repo — no package.json, Cargo.toml, go.mod or pyproject
+meant it exited 0 on every turn since it was written.
+
+Friday defrag Routine created (trig_01P5waCo7QvzRTyQ6MfYT9dm), switched to
+claude-opus-5 after a diagnostic fire came back on sonnet. Fired sessions carry
+no git sources and no connector tools, so the prompt now opens with a
+REPO/TOOLS/MODE preflight. Whether the first diagnostic run actually had the
+repo is still unread — it finished review-ready at 112K tokens.

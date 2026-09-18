@@ -26,6 +26,21 @@ whole repository is a reaction to.
 Same shape as the `scout` agent: rank from cheap metadata, open only what the
 ranking says is worth opening.
 
+## It runs on a schedule
+
+A Routine fires this weekly — **`trig_01P5waCo7QvzRTyQ6MfYT9dm`, "Friday defrag"**,
+Fridays at 22:00 UTC (16:00 Mountain), fresh session each time, on `claude-opus-5`,
+with push and email notification. Manage it with the `Claude_Code_Remote` trigger
+tools; `update_trigger` changes it in place and keeps its run history.
+
+**A fired session does not inherit this repo or this session's connector tools.**
+Its stored `sources` are empty and connectors cannot be attached from a session
+(the account has only Gmail, Calendar and Drive; the CCR meta-MCP is not a
+connector). That is why the Routine's prompt opens with a REPO / TOOLS / MODE
+preflight — the run must prove its own preconditions and say so in its first
+three lines rather than half-running. If a scheduled run reports anything other
+than "full review", the fix is the claude.ai Routines UI, not this file.
+
 ## Phase 0 — Sweep, cheaply
 
 Run these three. Nothing else.
