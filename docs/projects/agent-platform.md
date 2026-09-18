@@ -13,17 +13,19 @@ sessions:
 
 ## State
 
-Five subagents built and wired — `debugger`, `implementer`, `analyzer`, plus
-`scout` and `researcher` carrying harness-enforced `maxTurns`. Four hooks:
+Five subagents and five hooks, all wired. `debugger`, `implementer`, `analyzer`,
+plus `scout` and `researcher` carrying harness-enforced `maxTurns`. Hooks cover
 per-edit lint, a Stop-gate on tests, a frontmatter parse check, and a
-SubagentStop hook that writes agent memory the read-only agents cannot write
-themselves. `mcp-debugger` attached over stdio and verified by handshake.
+SubagentStop hook that writes memory the read-only agents cannot write
+themselves. `mcp-debugger` attached over stdio, verified by handshake.
 
-Three parallel branches were consolidated onto
-`claude/cowork-handoff-implementation-0fhik6`. CLAUDE.md exists and loads.
+Added 2026-09-18: the project registry and the `defrag` skill — this file is a
+product of it.
 
-**Nothing here has been measured on this codebase.** Every hook was validated by
-execution and every one of them had a real bug that reading missed — that is the
+Three branches consolidated onto `claude/cowork-handoff-implementation-0fhik6`.
+
+**Still unmeasured on this codebase.** Every hook was validated by execution and
+every one carried a real bug that reading had missed — five so far. That is the
 only claim this project can currently make.
 
 ## Next

@@ -30,6 +30,7 @@ The weekly `defrag` skill decides what belongs here.
 <!-- projects:begin -->
 - **agent-platform** — Subagents, verification hooks and research skills, plus the sourced research behind each choice. · `docs/projects/agent-platform.md`
 - **calgary-permits** — Rank Calgary builders by permit volume to produce a B2B call list from delivery-route overlap. · `docs/projects/calgary-permits.md`
+- **hermes** — Hermes agent — post-install configuration, OmniRoute integration, and session-notes sync to the vault. · `docs/projects/hermes.md`
 
 **Archived** (1) — not loaded; each carries a reopen condition in `docs/projects/_archive/`: `claude-md-file`
 <!-- projects:end -->
