@@ -14,11 +14,25 @@ decided and why.
 | `.claude/hooks/` | `verify-edit.sh` (PostToolUse), `verify-done.sh` (Stop), `check-frontmatter.py` |
 | `.claude/skills/` | `research-agent` (narrative), `research-compare` (matrix), `research-engines/` (shared reference, no SKILL.md on purpose) |
 | `.claude/skills/_archive/` | retired skills, nested two levels deep so they are not discoverable |
+| `docs/projects/` | project registry — cards, `_archive/`, and `registry.py` mechanics; see its README |
 | `docs/research/agent-spec.md` | **authoritative** on the agents and hooks |
 | `docs/research/debug-coding-agent-findings.md` | **authoritative** on the evidence and the token-cost incident |
 | `docs/research/agent-platform-skills.md` | **authoritative** on skills and on what the local model router can actually reach |
 | `research_notes/` | 254 KB of sourced research with per-file provenance caveats |
 | `reports/` | earlier synthesis, **partly superseded** — where it disagrees with `research_notes/`, the notes win |
+
+## Projects
+
+Generated — run `python3 .claude/skills/defrag/registry.py index --write`, do not
+hand-edit. Cards live in `docs/projects/`; only these lines are loaded per turn.
+The weekly `defrag` skill decides what belongs here.
+
+<!-- projects:begin -->
+- **agent-platform** — Subagents, verification hooks and research skills, plus the sourced research behind each choice. · `docs/projects/agent-platform.md`
+- **calgary-permits** — Rank Calgary builders by permit volume to produce a B2B call list from delivery-route overlap. · `docs/projects/calgary-permits.md`
+
+**Archived** (1) — not loaded; each carries a reopen condition in `docs/projects/_archive/`: `claude-md-file`
+<!-- projects:end -->
 
 Three branches fed this line of work and were consolidated here: the cloud
 sessions contributed agents and hooks, the desktop session contributed skills.
@@ -132,6 +146,10 @@ other.
   with `_archive/README.md` recording what went and why.
 - **Shared knowledge between skills lives in a folder with no `SKILL.md`**, so it
   does not register as invocable. Referenced by path.
+- **The Projects index above is generated.** Run `registry.py index --write`;
+  never hand-edit between the markers. Project state belongs in a card, and a
+  card's `## State` is *rewritten* and capped while its log is appended — a
+  summary that grows is not a summary.
 - **Keep this file under 200 lines.** Path-scoped detail belongs in
   `.claude/rules/`, which loads on demand.
 - Every claim added to `docs/research/` carries its provenance, and anything
